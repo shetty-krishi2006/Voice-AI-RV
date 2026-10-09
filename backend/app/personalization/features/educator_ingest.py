@@ -72,7 +72,7 @@ async def ingest_source(ctx: AppContext, payload: dict):
         content = "Sample text content."
         
     chunks = chunk_text(content)
-    mat.chunks = len(chunks)
+    chunk_count = len(chunks)
     
     # Insert chunks and FTS5
     for i, c_text in enumerate(chunks):
@@ -97,4 +97,4 @@ async def ingest_source(ctx: AppContext, payload: dict):
         
     mat.status = "ready"
     ctx.course_db.commit()
-    return {"job_id": "dummy", "material_id": mat.id, "status": "ready"}
+    return {"job_id": "dummy", "material_id": mat.id, "status": "ready", "chunks": chunk_count}

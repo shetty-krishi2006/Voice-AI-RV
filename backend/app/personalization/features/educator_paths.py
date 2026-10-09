@@ -64,18 +64,16 @@ async def publish_plan(ctx: AppContext, payload: dict):
 
 async def _suggest_paths_bg(ctx: AppContext, class_id: str, job_id: str):
     from app.user_db.models import Job
-    from app.personalization.llm.router import Router
     
-    # 1. Fetch materials for this class
-    # (assuming some materials exist or fallback to generic prompt)
-    
-    # 2. Call Agnes
     prompt = f"Suggest a learning path syllabus with 4 modules for class {class_id}. Return a JSON object with a 'modules' array of strings."
     try:
-        res = await Router.generate_json(
-            prompt=prompt,
-            schema={"type": "object", "properties": {"modules": {"type": "array", "items": {"type": "string"}}}},
-            priority="background"
+        res = await ctx.llm_router.call_agnes(
+            messages=[
+                {"role": "system", "content": "You are a curriculum planner. Respond only with valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            priority="background",
+            json_mode=True
         )
         
         # 3. Update job
@@ -108,17 +106,20 @@ async def suggest_learning_paths(ctx: AppContext, payload: dict, background_task
 
 @feature("parse_educator_intent", roles=("educator",))
 async def parse_educator_intent(ctx: AppContext, payload: dict):
-    from app.personalization.llm.router import Router
-    text = payload.get("text")
+    change_text = payload.get("text", "")
     
-    prompt = f"The educator said: '{text}'. Parse this into a structured change for the curriculum (e.g. reschedule, add topic). Return a JSON object with 'action' and 'details'."
-    schema = {
-        "type": "object", 
-        "properties": {
-            "action": {"type": "string"},
-            "details": {"type": "string"}
-        }
-    }
+    prompt = f"The educator said: '{change_text}'. Parse this into a structured change for the curriculum (e.g. reschedule, add topic). Return a JSON object with 'action' (string) and 'details' (string)."
     
-    res = await Router.generate_json(prompt, schema, priority="interactive")
-    return {"proposed_change": res}
+    try:
+        parsed = await ctx.llm_router.call_agnes(
+            messages=[
+                {"role": "system", "content": "You are a curriculum assistant. Respond only with valid JSON."},
+                {"role": "user", "content": prompt}
+            ],
+            priority="interactive",
+            json_mode=True
+        )
+    except Exception as e:
+        parsed = {"action": "unknown", "details": str(e)}
+    
+    return {"proposed_change": parsed}

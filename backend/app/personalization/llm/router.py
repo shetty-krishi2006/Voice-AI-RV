@@ -70,10 +70,11 @@ class LLMRouter:
             r = await client.post(url, json=req, headers=headers)
             if r.status_code != 200:
                 raise Exception(f"Agnes API error: {r.status_code} {r.text}")
+            content = r.json()["choices"][0]["message"]["content"]
             if json_mode:
-                return r.json()
-            return r.json()["choices"][0]["message"]["content"]
-                
+                import json as _json
+                return _json.loads(content) if isinstance(content, str) else content
+            return content
     async def call_local(self, messages: List[Dict[str, str]], stream=False) -> Any:
         url, req, headers = self._local_req(messages, stream)
 
